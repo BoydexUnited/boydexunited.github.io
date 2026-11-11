@@ -95,6 +95,7 @@ td:first-child{font-weight:500}
 <section>
 <h2 style="margin-bottom:12px">Game by game</h2>
 <div class="box" id="games"></div>
+<p class="sub" id="feedNote" style="margin-top:10px"></p>
 </section>
 
 <section>
@@ -117,10 +118,14 @@ td:first-child{font-weight:500}
 </div></main>
 
 <script>
-/* EDIT HERE. Add each new game to the end of the games list below.
-   For each game: list everyone who played, and tries per scorer. */
-var players=["Kieran O'Brien","Rory Orrell","Paul Brooks","Brent Pearco","George Heydon","Ryan Hardy","Luke Jones","John Hooper","Scott Logie","Will Merse","Chris Wardrop","Stuart Hollingsworth","Wes Saunders"];
-var games=[
+/* SETTINGS: paste your two Google Sheet links between the quotes (see the setup steps). */
+var GAMES_CSV="PASTE_GAMES_LINK_HERE";
+var PLAYS_CSV="PASTE_PLAYERS_LINK_HERE";
+var KEY="boydex-sheet-v2";
+
+/* Saved copy of the first two games, shown only until the sheet has loaded for the first time. */
+var fbPlayers=["Kieran O'Brien","Rory Orrell","Paul Brooks","Brent Pearco","George Heydon","Ryan Hardy","Luke Jones","John Hooper","Scott Logie","Will Merse","Chris Wardrop","Stuart Hollingsworth","Wes Saunders"];
+var fbGames=[
 {opp:"Jump Shots",when:"Round 1 · 21 Oct",us:7,them:4,
  played:["Kieran O'Brien","Rory Orrell","Paul Brooks","Brent Pearco","George Heydon","Ryan Hardy","Chris Wardrop","Stuart Hollingsworth","Wes Saunders"],
  tries:{"Kieran O'Brien":1,"Rory Orrell":1,"Paul Brooks":2,"Brent Pearco":1,"Wes Saunders":2},
@@ -131,11 +136,31 @@ var games=[
  writeup:"Another hard one against a tough team. Try for try for much of the match, but we managed to shred them up for a little patch in the second half. Some luck and some skill as they came storming back in the final quarter. Good to get one up on our winter futbol team mates."}
 ];
 
+var players=[],games=[],rows=[],showFn=null;
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
-var rows=players.map(function(n){
-var gp=0,t=0;
-games.forEach(function(g){if(g.played.indexOf(n)>-1)gp++;t+=(g.tries[n]||0)});
-return {name:n,gp:gp,tries:t,tpg:gp?t/gp:0};});
+
+function parseCSV(t){var rows=[],r=[],f="",q=false,i=0,c;
+t=t.replace(/^\uFEFF/,"");
+for(;i<t.length;i++){c=t[i];
+if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+else if(c==='"')q=true;
+else if(c===","){r.push(f);f=""}
+else if(c==="\n"||c==="\r"){if(c==="\r"&&t[i+1]==="\n")i++;r.push(f);f="";rows.push(r);r=[]}
+else f+=c}
+if(f!==""||r.length){r.push(f);rows.push(r)}
+return rows}
+function objs(rows){if(!rows.length)return [];var h=rows[0].map(function(x){return x.trim().toLowerCase()});
+return rows.slice(1).map(function(r){var o={};h.forEach(function(k,i){o[k]=(r[i]||"").trim()});return o}).filter(function(o){return Object.keys(o).some(function(k){return o[k]})})}
+function buildData(gRows,pRows){
+var G=objs(gRows),P=objs(pRows),pl=[],by={};
+P.forEach(function(p){var n=p.player;if(!n||pl.indexOf(n)>-1)return;pl.push(n);
+Object.keys(p).forEach(function(k){if(k==="player"||p[k]==="")return;
+var x=by[k]=by[k]||{played:[],tries:{}};
+x.played.push(n);var t=parseInt(p[k],10)||0;if(t>0)x.tries[n]=t;});});
+var gs=G.filter(function(g){return g.round&&g.opponent&&g.us!==""&&g.them!==""}).map(function(g){
+var x=by[g.round.toLowerCase()]||{played:[],tries:{}};
+return {opp:g.opponent,when:g.round+(g.date?" · "+g.date:""),us:+g.us||0,them:+g.them||0,played:x.played,tries:x.tries,writeup:g.writeup||""}});
+return {players:pl,games:gs}}
 
 var sortK="tries",sortDesc=true;
 function renderTable(){
@@ -155,9 +180,12 @@ if(sortK===k)sortDesc=!sortDesc;else{sortK=k;sortDesc=th.dataset.t!=="s";}
 renderTable();});});
 
 var cols=['#e8590c','#2f6fdb','#1f9d55','#c2358a','#8a5cf5','#b07d00','#0f9fb0','#d64545'];
-var ini={},used={};
-players.forEach(function(n){var b=n.split(/\s+/).map(function(w){return w.charAt(0).toUpperCase()}).join(''),k=b,c=2;while(used[k]){k=b+c++}used[k]=1;ini[n]=k;});
+var ini={};
+function setInitials(){var used={};ini={};players.forEach(function(n){var b=n.split(/\s+/).map(function(w){return w.charAt(0).toUpperCase()}).join(''),k=b,c=2;while(used[k]){k=b+c++}used[k]=1;ini[n]=k;});}
+
+function drawChart(){
 var sco=players.filter(function(n){return games.some(function(g){return g.tries[n]})});
+if(!sco.length){document.getElementById("chart").innerHTML="No tries yet.";return}
 var rounds=games.map(function(g){return g.when.split(" · ")[0]});
 function cum(n,i){var t=0;for(var k=0;k<=i;k++)t+=games[k].tries[n]||0;return t}
 var y0=Math.max.apply(null,[3].concat(sco.map(function(n){return cum(n,games.length-1)})));
@@ -168,7 +196,6 @@ var PX=42;
 function cx(i){return games.length<2?CL+iw/2:CL+PX+(iw-2*PX)*i/(games.length-1)}
 function cy(v){return CT+ih-ih*v/ymax}
 function off(n,i){var v=cum(n,i);var g=sco.filter(function(m){return cum(m,i)===v});return (g.indexOf(n)-(g.length-1)/2)*(g.length>1?26:0)}
-if(!sco.length){document.getElementById("chart").innerHTML="No tries yet.";}else{
 var s='<svg viewBox="0 0 '+CW+' '+CH+'" width="100%" role="img" aria-label="Meat pies scored by each player in each round" style="display:block">';
 for(var v=0;v<=ymax;v+=step){s+='<line x1="'+CL+'" x2="'+(CW-CR)+'" y1="'+cy(v)+'" y2="'+cy(v)+'" style="stroke:var(--line)"/><text x="'+(CL-8)+'" y="'+(cy(v)+4)+'" text-anchor="end" font-size="12" style="fill:var(--muted)">'+v+'</text>';}
 s+='<g transform="translate(6,'+(CT+ih/2-12)+')" role="img" aria-label="Meat pie"><path d="M3.5 13H20.5L18.5 21H5.5Z" fill="#a8692a"/><path d="M3 13C3 5 21 5 21 13Z" fill="#e2a24b"/><path d="M6 10C8 7 13 6.5 16 8" fill="none" stroke="#f3c477" stroke-width="1.5" stroke-linecap="round"/><ellipse cx="12" cy="8.2" rx="3.2" ry="1.5" fill="#c0392b"/><path d="M7.5 16H16.5" stroke="#8a5220" stroke-width="1" stroke-dasharray="1.5 1.5"/></g>';
@@ -181,20 +208,19 @@ rounds.forEach(function(r,i){s+='<text x="'+cx(i)+'" y="'+(CH-14)+'" text-anchor
 s+='</svg><div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:14px">'+sco.map(function(n,j){return '<span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:'+cols[j%cols.length]+'"></span>'+esc(ini[n])+'</span>';}).join('')+'</div>';
 document.getElementById("chart").innerHTML=s;}
 
-var w=0,l=0,d=0,t=0;
-document.getElementById("games").innerHTML='<div class="track">'+games.map(function(g){
+function setRecord(w,l,d,t){document.getElementById("rW").textContent=w;document.getElementById("rL").textContent=l;document.getElementById("rD").textContent=d;document.getElementById("rT").textContent=t;}
+function drawGames(){
+var w=0,l=0,d=0,t=0,box=document.getElementById("games");
+showFn=null;
+if(!games.length){box.innerHTML='<div class="game" style="padding:16px">No games yet.</div>';setRecord(0,0,0,0);return}
+box.innerHTML='<div class="track">'+games.map(function(g){
 var r=g.us>g.them?"W":g.us<g.them?"L":"D";
 if(r==="W")w++;else if(r==="L")l++;else d++;
 t+=g.us;
 var sc=Object.keys(g.tries).map(function(n){return esc(ini[n])+(g.tries[n]>1?" ("+g.tries[n]+")":"")}).join(", ");
-return '<div class="game"><div class="gh"><span class="res '+r+'">'+r+'</span><span class="opp">vs '+esc(g.opp)+'<span class="when">'+esc(g.when)+'</span></span><span class="score">'+g.us+" – "+g.them+'</span></div><div class="gd"><p><b>Scored:</b> '+(sc||"–")+'</p><p><b>Played ('+g.played.length+'):</b> '+g.played.map(function(n){return esc(ini[n])}).join(", ")+"</p></div>"+(g.writeup?'<div class="wu"><b>Captain Kizza’s write-up</b>'+g.writeup.split("\n").map(function(x){return "<p>"+esc(x)+"</p>"}).join("")+"</div>":"")+"</div>";}).join("")+"</div>";
-document.getElementById("rW").textContent=w;
-document.getElementById("rL").textContent=l;
-document.getElementById("rD").textContent=d;
-document.getElementById("rT").textContent=t;
-renderTable();
-(function(){
-var box=document.getElementById("games"),cards=[].slice.call(box.querySelectorAll(".game")),n=cards.length,track=box.querySelector(".track"),cur=n-1;
+return '<div class="game"><div class="gh"><span class="res '+r+'">'+r+'</span><span class="opp">vs '+esc(g.opp)+'<span class="when">'+esc(g.when)+'</span></span><span class="score">'+g.us+" – "+g.them+'</span></div><div class="gd">'+(g.played.length?'<p><b>Scored:</b> '+(sc||"–")+'</p><p><b>Played ('+g.played.length+'):</b> '+g.played.map(function(n){return esc(ini[n])}).join(", ")+"</p>":'<p><b>Line-up and scorers:</b> to come</p>')+"</div>"+(g.writeup?'<div class="wu"><b>Captain Kizza’s write-up</b>'+g.writeup.split("\n").map(function(x){return "<p>"+esc(x)+"</p>"}).join("")+"</div>":"")+"</div>";}).join("")+"</div>";
+setRecord(w,l,d,t);
+var cards=[].slice.call(box.querySelectorAll(".game")),n=cards.length,track=box.querySelector(".track"),cur=n-1;
 if(n<2)return;
 var L=document.createElement("button"),R=document.createElement("button"),dots=document.createElement("div"),db=[];
 L.id="gL";R.id="gR";L.className=R.className="arr";
@@ -210,8 +236,31 @@ var x0=null;
 box.addEventListener("touchstart",function(e){x0=e.touches[0].clientX},{passive:true});
 box.addEventListener("touchend",function(e){if(x0===null)return;var dx=e.changedTouches[0].clientX-x0;x0=null;if(dx>50&&cur>0)show(cur-1);else if(dx<-50&&cur<n-1)show(cur+1)});
 show(n-1);
-["resize","load"].forEach(function(e){window.addEventListener(e,function(){show(cur)})});
-})();
+showFn=function(){show(cur)};
+}
+["resize","load"].forEach(function(e){window.addEventListener(e,function(){if(showFn)showFn()})});
+
+function renderAll(){
+setInitials();
+rows=players.map(function(n){var gp=0,t=0;games.forEach(function(g){if(g.played.indexOf(n)>-1)gp++;t+=(g.tries[n]||0)});return {name:n,gp:gp,tries:t,tpg:gp?t/gp:0};});
+renderTable();drawChart();drawGames();}
+
+function note(txt){document.getElementById("feedNote").textContent=txt}
+function load(){
+if(!/^https?:/.test(GAMES_CSV)||!/^https?:/.test(PLAYS_CSV))return;
+Promise.all([GAMES_CSV,PLAYS_CSV].map(function(u){return fetch(u).then(function(r){if(!r.ok)throw 0;return r.text()})})).then(function(a){
+var d=buildData(parseCSV(a[0]),parseCSV(a[1]));
+if(!d.games.length)throw 0;
+players=d.players;games=d.games;
+try{localStorage.setItem(KEY,JSON.stringify(d))}catch(e){}
+renderAll();note("");
+}).catch(function(){note("Couldn’t load the latest results, showing the last saved copy.")});}
+
+var cached=null;
+try{cached=JSON.parse(localStorage.getItem(KEY)||"null")}catch(e){}
+if(cached&&cached.games&&cached.games.length){players=cached.players;games=cached.games}else{players=fbPlayers.slice();games=fbGames}
+renderAll();
+load();
 </script>
 </body>
 </html>
