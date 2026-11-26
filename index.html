@@ -301,7 +301,7 @@ renderAll();
 load();
 </script>
 
-<!-- Turns the line chart into a real image you can press-and-hold or right-click to copy. Replace the earlier block in index.html with this whole block (just above </body>). -->
+<!-- Turns the line chart into an image. -->
 <script>
 (function(){
 var box=document.getElementById("chart"),
@@ -327,9 +327,6 @@ function conv(){
     c.width=Math.round(r.width*z);c.height=Math.round(r.height*z);
     x.fillStyle=bg(box);x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);
     m.src=c.toDataURL("image/png");m.alt="Meat pies running total chart";
-    m.style.cssText="display:block;width:100%;height:auto";
-    p.textContent="Press and hold the chart to copy or share it. On a computer, right-click it.";
-    p.style.cssText="margin:10px 0 0;font-size:14px;color:var(--muted,#58657a)";
     s.parentNode.replaceChild(m,s);m.insertAdjacentElement("afterend",p);
   };
   im.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(new XMLSerializer().serializeToString(k));
