@@ -301,53 +301,41 @@ renderAll();
 load();
 </script>
 
-<!--  -->
+<!-- Turns the line chart into a real image you can press-and-hold or right-click to copy. Replace the earlier block in index.html with this whole block (just above </body>). -->
 <script>
 (function(){
-var sec=document.getElementById("chart").parentNode,btn=document.createElement("button");
-btn.textContent="Share leaderboard";
-btn.style.cssText="margin-top:12px;padding:10px 18px;border:0;border-bottom:3px solid var(--bib);border-radius:6px;background:var(--turf);color:var(--turf-ink);font:800 20px 'Barlow Condensed',sans-serif;cursor:pointer";
-sec.appendChild(btn);
-btn.onclick=function(){
-  var T=[],W=0,L=0,D=0,P=0,y0=450,rh=84;
-  players.forEach(function(n){var t=0;games.forEach(function(g){t+=g.tries[n]||0});if(t)T.push([n,t])});
-  if(!T.length){alert("No meat pies yet");return}
-  T.sort(function(a,b){return b[1]-a[1]||a[0].localeCompare(b[0])});
-  games.forEach(function(g){if(g.us>g.them)W++;else if(g.us<g.them)L++;else D++;P+=g.us});
-  var w=1080,h=y0+T.length*rh+110,mx=T[0][1],c=document.createElement("canvas"),x=c.getContext("2d"),
-  F="'Barlow Condensed','Arial Narrow',sans-serif",B="Barlow,system-ui,sans-serif";
-  c.width=w;c.height=h;
-  x.fillStyle="#f0f3f9";x.fillRect(0,0,w,h);
-  x.fillStyle="#14284b";x.fillRect(0,0,w,330);
-  x.fillStyle="#e8590c";x.fillRect(0,330,w,10);
-  x.fillStyle="#f0f3f9";
-  x.font="800 120px "+F;x.fillText("BOYDEX UNITED",60,150);
-  x.font="500 34px "+B;x.fillText(document.querySelector("header p").textContent,60,208);
-  x.font="800 56px "+F;x.fillText(W+"W  "+L+"L  "+D+"D  ·  "+P+" meat pies",60,290);
-  x.save();x.translate(880,70);x.scale(7,7);
-  x.fillStyle="#a8692a";x.fill(new Path2D("M3.5 13H20.5L18.5 21H5.5Z"));
-  x.fillStyle="#e2a24b";x.fill(new Path2D("M3 13C3 5 21 5 21 13Z"));
-  x.fillStyle="#c0392b";x.beginPath();x.ellipse(12,8.2,3.2,1.5,0,0,7);x.fill();
-  x.restore();
-  x.fillStyle="#121c2e";x.font="800 52px "+F;x.fillText("Meat pie leaderboard",60,y0-35);
-  T.forEach(function(r,i){
-    var cy=y0+i*rh+rh/2,f=40;
-    x.fillStyle="#d2d9e6";x.fillRect(480,cy-17,450,34);
-    x.fillStyle=r[1]===mx?"#e8590c":"#14284b";x.fillRect(480,cy-17,Math.max(10,450*r[1]/mx),34);
-    x.fillStyle="#121c2e";x.textAlign="left";x.font="500 "+f+"px "+B;
-    while(x.measureText(r[0]).width>400&&f>22){f-=2;x.font="500 "+f+"px "+B}
-    x.fillText(r[0],60,cy+14);
-    x.font="800 56px "+F;x.textAlign="right";x.fillText(r[1],1020,cy+19);
-  });
-  x.textAlign="left";x.fillStyle="#58657a";x.font="500 30px "+B;
-  x.fillText("After "+games[games.length-1].when.split(" · ")[0]+(location.host?"  ·  "+location.host:""),60,h-44);
-  c.toBlob(function(b){
-    var f=new File([b],"boydex-meat-pies.png",{type:"image/png"});
-    function dl(){var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=f.name;a.click()}
-    if(navigator.canShare&&navigator.canShare({files:[f]}))navigator.share({files:[f],title:"Boydex United meat pies"}).catch(function(e){if(e.name!=="AbortError")dl()});
-    else dl();
-  });
-};
+var box=document.getElementById("chart"),
+PR=["fill","fill-opacity","stroke","stroke-width","stroke-opacity","stroke-linecap","stroke-linejoin","stroke-dasharray","opacity","font-family","font-size","font-weight","font-style","letter-spacing","text-anchor","dominant-baseline"];
+function bg(e){for(;e;e=e.parentElement){var c=getComputedStyle(e).backgroundColor;if(c&&c!=="rgba(0, 0, 0, 0)"&&c!=="transparent")return c}return"#fff"}
+function conv(){
+  var s=box.querySelector("svg");
+  if(!s)return;
+  if(s.getAnimations)s.getAnimations({subtree:true}).forEach(function(a){try{a.finish()}catch(e){}});
+  var r=s.getBoundingClientRect();
+  if(!r.width)return;
+  var k=s.cloneNode(true),a=[s].concat([].slice.call(s.querySelectorAll("*"))),b=[k].concat([].slice.call(k.querySelectorAll("*")));
+  a.forEach(function(e,i){var cs=getComputedStyle(e),st="";
+    PR.forEach(function(p){st+=p+":"+cs.getPropertyValue(p)+";"});
+    if(cs.display==="none")st+="display:none;";
+    b[i].setAttribute("style",(b[i].getAttribute("style")||"")+";"+st)});
+  k.setAttribute("width",r.width);k.setAttribute("height",r.height);
+  if(!k.getAttribute("viewBox"))k.setAttribute("viewBox","0 0 "+r.width+" "+r.height);
+  var im=new Image();
+  im.onload=function(){
+    if(!s.isConnected)return;
+    var z=3,c=document.createElement("canvas"),x=c.getContext("2d"),m=new Image(),p=document.createElement("p");
+    c.width=Math.round(r.width*z);c.height=Math.round(r.height*z);
+    x.fillStyle=bg(box);x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);
+    m.src=c.toDataURL("image/png");m.alt="Meat pies running total chart";
+    m.style.cssText="display:block;width:100%;height:auto";
+    p.textContent="Press and hold the chart to copy or share it. On a computer, right-click it.";
+    p.style.cssText="margin:10px 0 0;font-size:14px;color:var(--muted,#58657a)";
+    s.parentNode.replaceChild(m,s);m.insertAdjacentElement("afterend",p);
+  };
+  im.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(new XMLSerializer().serializeToString(k));
+}
+new MutationObserver(conv).observe(box,{childList:true});
+conv();
 })();
 </script>
 
